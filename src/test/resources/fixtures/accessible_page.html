@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>웹 접근성 테스트 페이지 (정상)</title>
+    <style>
+        body { color: rgb(0, 0, 0); background-color: rgb(255, 255, 255); }
+    </style>
+</head>
+<body>
+    <h1>메인 콘텐츠 제목</h1>
+    <section>
+        <h2>섹션 제목입니다</h2>
+        <p>본문 내용이 충분히 작성되어 있습니다.</p>
+    </section>
+
+    <form>
+        <label for="username">사용자명</label>
+        <input type="text" id="username" name="username">
+
+        <label for="email">이메일</label>
+        <input type="email" id="email" name="email">
+
+        <button type="submit">제출</button>
+    </form>
+
+    <table summary="직원 명단">
+        <caption>직원 명단</caption>
+        <thead>
+            <tr>
+                <th scope="col">이름</th>
+                <th scope="col">부서</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>홍길동</td>
+                <td>개발팀</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <video poster="thumbnail.jpg" tabindex="0">
+        <track kind="captions" src="subtitles.vtt" srclang="ko" label="한국어">
+    </video>
+
+    <img src="data:image/svg+xml;utf8,<svg></svg>" alt="로고 이미지">
+</body>
+</html>
