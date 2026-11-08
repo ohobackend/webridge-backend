@@ -17,9 +17,10 @@ public class ApiException extends RuntimeException {
         this.body = Map.of("error", error);
     }
 
-    public ApiException(HttpStatus status, Map<String, Object> body) {
+    @SuppressWarnings("unchecked")
+    public ApiException(HttpStatus status, Map<String, ?> body) {
         super(body.toString());
         this.status = status;
-        this.body = body;
+        this.body = (Map<String, Object>) body;
     }
 }

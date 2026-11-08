@@ -14,6 +14,7 @@ import java.util.UUID;
 public interface AccessibilityScanRepository extends JpaRepository<AccessibilityScan, UUID> {
     Page<AccessibilityScan> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
     Optional<AccessibilityScan> findByIdAndUserId(UUID id, Long userId);
+    List<AccessibilityScan> findByUserIdAndStatus(Long userId, ScanStatus status);
     List<AccessibilityScan> findByStatusInAndUpdatedAtBefore(List<ScanStatus> statuses, OffsetDateTime threshold);
     long countByUserId(Long userId);
 }

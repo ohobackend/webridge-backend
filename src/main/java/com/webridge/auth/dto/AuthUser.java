@@ -17,6 +17,10 @@ public record AuthUser(
     boolean isActive
 ) implements UserDetails {
 
+    public Long getId() {
+        return id;
+    }
+
     public static AuthUser from(User user) {
         return new AuthUser(
             user.getId(),
