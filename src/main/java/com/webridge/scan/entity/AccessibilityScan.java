@@ -114,6 +114,58 @@ public class AccessibilityScan {
     @Column(name = "error_message", columnDefinition = "text")
     private String errorMessage;
 
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<AltTextResult> altTextResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<ContrastResult> contrastResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<KeyboardResult> keyboardResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<LabelResult> labelResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<TableResult> tableResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<VideoCaptionResult> videoCaptionResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<VideoAutoplayResult> videoAutoplayResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<BasicLanguageResult> basicLanguageResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<MarkupErrorResult> markupErrorResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<HeadingResult> headingResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<ResponseTimeResult> responseTimeResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<PauseControlResult> pauseControlResults = new java.util.ArrayList<>();
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "scan", cascade = jakarta.persistence.CascadeType.REMOVE)
+    private java.util.List<FlashingResult> flashingResults = new java.util.ArrayList<>();
+
     @PrePersist
     public void prePersist() {
         if (id == null) {
