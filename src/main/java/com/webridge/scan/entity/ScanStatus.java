@@ -28,4 +28,8 @@ public enum ScanStatus {
             .findFirst()
             .orElseThrow(() -> new IllegalArgumentException("Unknown ScanStatus: " + v));
     }
+
+    public static ScanStatus fromValue(String v) {
+        return from(v);
+    }
 }
