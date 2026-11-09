@@ -28,6 +28,7 @@ public class SurveyService {
     private final SurveyRepository surveyRepository;
     private final SurveyTriggerRepository surveyTriggerRepository;
     private final UserRepository userRepository;
+    private final com.webridge.scan.repository.AccessibilityScanRepository scanRepository;
 
     private static final Set<String> VALID_COMPANY_TYPES = Set.of("a", "b", "c", "d", "e", "f");
     private static final Set<String> VALID_USAGE_REASONS = Set.of("a", "b", "c", "d", "e");
@@ -124,6 +125,27 @@ public class SurveyService {
                 errors.put(fieldName, List.of("유효하지 않은 " + fieldName + "입니다: " + choice));
                 return;
             }
+        }
+    }
+
+    @Transactional
+    public void onScanCompleted(java.util.UUID scanId) {
+        try {
+            var scanOpt = scanRepository.findById(scanId);
+            if (scanOpt.isEmpty()) return;
+            var scan = scanOpt.get();
+            var user = scan.getUser();
+            if (user == null) return;
+
+            SurveyTrigger trigger = surveyTriggerRepository.findByUserId(user.getId())
+                    .orElseGet(() -> SurveyTrigger.builder().user(user).build());
+            trigger.setCompletedScansCount(trigger.getCompletedScansCount() + 1);
+            if (scan.getTotalIssues() > 0) {
+                trigger.setHasIssuesFound(true);
+            }
+            surveyTriggerRepository.save(trigger);
+        } catch (Exception e) {
+            // Survey trigger failure should not fail scan completion
         }
     }
 
