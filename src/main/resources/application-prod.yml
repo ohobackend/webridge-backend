@@ -1,6 +1,29 @@
+server:
+  forward-headers-strategy: framework
+
 spring:
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc.time_zone: UTC
   flyway:
     enabled: true
+
+springdoc:
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    root: INFO
+    com.webridge: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

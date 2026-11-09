@@ -1629,55 +1629,55 @@ management:
 ## 14. 체크리스트
 
 ### 기반
-- [ ] Spring Boot 프로젝트 생성 (Java 21, Gradle Kotlin DSL)
-- [ ] docker-compose (PostgreSQL, Redis) 실행
-- [ ] `.env` / `application.yml` 구성
-- [ ] Jackson snake_case, 시간대, 트레일링 슬래시 처리
-- [ ] 전역 예외 처리 (DRF 에러 형식)
-- [ ] MDC 로깅 + logback 파일 롤링
-- [ ] springdoc Swagger 태그 (Health/Auth/User/Scan/Feedback/Terms/Survey)
+- [x] Spring Boot 프로젝트 생성 (Java 21, Gradle Kotlin DSL)
+- [x] docker-compose (PostgreSQL, Redis) 실행
+- [x] `.env` / `application.yml` 구성
+- [x] Jackson snake_case, 시간대, 트레일링 슬래시 처리
+- [x] 전역 예외 처리 (DRF 에러 형식)
+- [x] MDC 로깅 + logback 파일 롤링
+- [x] springdoc Swagger 태그 (Health/Auth/User/Scan/Feedback/Terms/Survey)
 
 ### 데이터
-- [ ] Flyway `V1__init.sql` (기존 스키마 덤프)
-- [ ] Entity 23개 + enum Converter (`cancelled` 포함)
-- [ ] `ddl-auto: validate` 통과
-- [ ] 초기 약관 데이터 (`create_initial_terms` 대체)
+- [x] Flyway `V1__init.sql` (기존 스키마 덤프)
+- [x] Entity 23개 + enum Converter (`cancelled` 포함)
+- [x] `ddl-auto: validate` 통과
+- [x] 초기 약관 데이터 (`create_initial_terms` 대체)
 
 ### 인증
-- [ ] Django PBKDF2 비밀번호 호환 + 단위 테스트
-- [ ] JWT (simplejwt claim 호환, 같은 SECRET_KEY)
-- [ ] Refresh Rotation + 블랙리스트
-- [ ] 비밀번호 재설정 토큰 (30분)
-- [ ] 이메일 인증 (링크, HTML 결과 페이지)
-- [ ] 소셜 로그인 (Google / Kakao / GitHub) + 약관 동의 플로우
+- [x] Django PBKDF2 비밀번호 호환 + 단위 테스트
+- [x] JWT (simplejwt claim 호환, 같은 SECRET_KEY)
+- [x] Refresh Rotation + 블랙리스트
+- [x] 비밀번호 재설정 토큰 (30분)
+- [x] 이메일 인증 (링크, HTML 결과 페이지)
+- [x] 소셜 로그인 (Google / Kakao / GitHub) + 약관 동의 플로우
 
 ### 기능 API
-- [ ] Health / Ping
-- [ ] User (`/user/me`, `/user/extra-info/`)
-- [ ] Terms (current / status / update)
-- [ ] Feedback CRUD + 페이지네이션(20)
-- [ ] Survey + SurveyTrigger
-- [ ] AltText Feedback
-- [ ] Scan CRUD + 페이지네이션(10)
+- [x] Health / Ping
+- [x] User (`/user/me`, `/user/extra-info/`)
+- [x] Terms (current / status / update)
+- [x] Feedback CRUD + 페이지네이션(20)
+- [x] Survey + SurveyTrigger
+- [x] AltText Feedback
+- [x] Scan CRUD + 페이지네이션(10)
 
 ### 검사 엔진
-- [ ] JS 스크립트 분리 (`checker-js/`)
-- [ ] 13개 검사 항목 이식 + fixture 테스트
-- [ ] OpenAI alt 텍스트 생성/평가 (프롬프트 동일)
-- [ ] `total_issues`, `compliance_score` 계산 로직 동일
-- [ ] 비동기 실행 (`@Async`, 커밋 후 실행), 타임아웃, 재시도
-- [ ] WebSocket `/ws/scans/{id}/` + SSE `/scans/{id}/stream/`
-- [ ] 중단된 검사 정리 스케줄러 (ShedLock)
+- [x] JS 스크립트 분리 (`checker-js/`)
+- [x] 13개 검사 항목 이식 + fixture 테스트
+- [x] OpenAI alt 텍스트 생성/평가 (프롬프트 동일)
+- [x] `total_issues`, `compliance_score` 계산 로직 동일
+- [x] 비동기 실행 (`@Async`, 커밋 후 실행), 타임아웃, 재시도
+- [x] WebSocket `/ws/scans/{id}/` + SSE `/scans/{id}/stream/`
+- [x] 중단된 검사 정리 스케줄러 (ShedLock)
 
 ### 리포트
-- [ ] PDF (OpenPDF, 한글 폰트)
-- [ ] Excel (Apache POI)
-- [ ] JSON
-- [ ] 다운로드 (파일명 UTF-8 인코딩, `download_count` 증가)
+- [x] PDF (OpenPDF, 한글 폰트)
+- [x] Excel (Apache POI)
+- [x] JSON
+- [x] 다운로드 (파일명 UTF-8 인코딩, `download_count` 증가)
 
 ### 전환
-- [ ] Python/Java 응답 비교 테스트
-- [ ] Dockerfile (Playwright 이미지)
+- [x] Python/Java 응답 비교 테스트 (`scripts/compare_api.py`, `scripts/compare-api.ps1`)
+- [x] Dockerfile (Playwright 이미지) + `.dockerignore`
 - [ ] 스테이징 병행 운영
 - [ ] 운영 DB 백업 → 전환 → 모니터링
 - [ ] Django는 Admin 전용으로 축소 (또는 관리자 API 구축 후 제거)
