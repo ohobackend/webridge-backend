@@ -10,14 +10,19 @@ import com.webridge.scan.dto.ScanProgressDto;
 import com.webridge.scan.dto.ScanRestartResponse;
 import com.webridge.scan.progress.ScanSseService;
 import com.webridge.scan.service.ScanService;
+import com.webridge.scan.report.ScanReportService;
+import com.webridge.scan.report.dto.ScanReportRequest;
+import com.webridge.scan.report.dto.ScanReportResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,6 +45,7 @@ public class ScanController {
 
     private final ScanService scanService;
     private final ScanSseService sseService;
+    private final ScanReportService reportService;
 
     @PostMapping({"/create", "/create/"})
     @ResponseStatus(HttpStatus.CREATED)
@@ -111,5 +117,25 @@ public class ScanController {
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("X-Accel-Buffering", "no");
         return sseService.subscribe(scanId, me.getId());
+    }
+
+    @PostMapping({"/{scanId}/generate-report", "/{scanId}/generate-report/"})
+    @Operation(summary = "웹 접근성 검사 리포트 생성", description = "완료된 검사의 리포트를 생성합니다. (pdf, excel, json)")
+    public ScanReportResponse generateReport(
+            @AuthenticationPrincipal AuthUser me,
+            @PathVariable UUID scanId,
+            @RequestBody(required = false) ScanReportRequest body
+    ) {
+        String format = (body != null) ? body.format() : "pdf";
+        return reportService.requestReport(scanId, me.getId(), format);
+    }
+
+    @GetMapping({"/{scanId}/download-report", "/{scanId}/download-report/"})
+    @Operation(summary = "웹 접근성 검사 리포트 다운로드", description = "생성된 검사 리포트를 다운로드합니다.")
+    public ResponseEntity<Resource> downloadReport(
+            @AuthenticationPrincipal AuthUser me,
+            @PathVariable UUID scanId
+    ) {
+        return reportService.downloadReport(scanId, me.getId());
     }
 }

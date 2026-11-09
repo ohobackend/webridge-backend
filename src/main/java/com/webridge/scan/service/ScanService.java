@@ -56,6 +56,7 @@ public class ScanService {
     private final AltTextFeedbackRepository feedbackRepo;
     private final ScanTaskRunner taskRunner;
     private final WebridgeProperties props;
+    private final com.webridge.scan.repository.ScanReportRepository reportRepo;
 
     private final AltTextResultRepository altTextRepo;
     private final ContrastResultRepository contrastRepo;
@@ -140,7 +141,8 @@ public class ScanService {
             }
         }
 
-        return ScanDetailDto.from(scan, feedbackMap, getBaseUrl());
+        com.webridge.scan.entity.ScanReport report = reportRepo.findByScanId(scanId).orElse(null);
+        return ScanDetailDto.from(scan, feedbackMap, getBaseUrl(), report);
     }
 
     @Transactional
