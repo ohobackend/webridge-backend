@@ -58,6 +58,15 @@ public record ScanDetailDto(
         List<ScanCategorySummary> scanSummary
 ) {
     public static ScanDetailDto from(AccessibilityScan scan, Map<Long, String> userFeedbackMap, String baseUrl) {
+        return from(scan, userFeedbackMap, baseUrl, null);
+    }
+
+    public static ScanDetailDto from(
+            AccessibilityScan scan,
+            Map<Long, String> userFeedbackMap,
+            String baseUrl,
+            com.webridge.scan.entity.ScanReport report
+    ) {
         String statusVal = scan.getStatus() != null ? scan.getStatus().getValue() : "pending";
         String statusDisplay = switch (statusVal) {
             case "processing" -> "진행중";
@@ -167,12 +176,12 @@ public record ScanDetailDto(
                 pauseItems,
                 flashingItems,
 
-                null, // report (Phase 7)
+                report != null ? ScanReportItemDto.from(report, baseUrl) : null,
                 summaries
         );
     }
 
-    private static List<ScanCategorySummary> buildScanSummary(AccessibilityScan scan) {
+    public static List<ScanCategorySummary> buildScanSummary(AccessibilityScan scan) {
         List<ScanCategorySummary> summary = new ArrayList<>();
 
         // 1. 적절한 대체 텍스트 제공
