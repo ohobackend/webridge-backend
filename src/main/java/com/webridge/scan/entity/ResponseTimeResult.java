@@ -44,7 +44,7 @@ public class ResponseTimeResult {
     private int shortTimeouts = 0;
 
     @Builder.Default
-    @Column(name = "element_html", columnDefinition = "text", nullable = false)
+    @Column(name = "element_html", columnDefinition = "text")
     private String elementHtml = "";
 
     @Column(nullable = false)
