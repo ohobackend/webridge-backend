@@ -37,20 +37,21 @@ public class ScanTaskRunner {
         log.info("Starting ScanTaskRunner for scan {}", scanId);
         MDC.put("taskId", "scan-" + scanId);
         try {
-            // DB 커밋 딜레이 대비 최대 2초(200ms x 10회) 재시도
+            // DB 커밋 딜레이 대비 최대 5초(500ms x 10회) 재시도
             AccessibilityScan scan = null;
             for (int i = 0; i < 10; i++) {
                 scan = scanRepo.findById(scanId).orElse(null);
                 if (scan != null) {
                     break;
                 }
+                log.info("Scan {} not visible yet, waiting for commit ({}/10)...", scanId, i + 1);
                 try {
-                    Thread.sleep(200);
+                    Thread.sleep(500);
                 } catch (InterruptedException ignored) {}
             }
 
             if (scan == null) {
-                log.error("Scan {} not found after retries", scanId);
+                log.error("Scan {} not found after 5s retries. Aborting scan task.", scanId);
                 return;
             }
 

@@ -33,23 +33,23 @@ import com.webridge.user.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ScanService {
 
@@ -59,6 +59,7 @@ public class ScanService {
     private final ScanTaskRunner taskRunner;
     private final WebridgeProperties props;
     private final com.webridge.scan.repository.ScanReportRepository reportRepo;
+    private final Executor scanExecutor;
 
     private final AltTextResultRepository altTextRepo;
     private final ContrastResultRepository contrastRepo;
@@ -73,6 +74,50 @@ public class ScanService {
     private final ResponseTimeResultRepository responseTimeRepo;
     private final PauseControlResultRepository pauseControlRepo;
     private final FlashingResultRepository flashingRepo;
+
+    public ScanService(
+            AccessibilityScanRepository scanRepo,
+            UserRepository userRepo,
+            AltTextFeedbackRepository feedbackRepo,
+            ScanTaskRunner taskRunner,
+            WebridgeProperties props,
+            com.webridge.scan.repository.ScanReportRepository reportRepo,
+            @Qualifier("scanExecutor") Executor scanExecutor,
+            AltTextResultRepository altTextRepo,
+            ContrastResultRepository contrastRepo,
+            KeyboardResultRepository keyboardRepo,
+            LabelResultRepository labelRepo,
+            TableResultRepository tableRepo,
+            VideoCaptionResultRepository videoCaptionRepo,
+            VideoAutoplayResultRepository videoAutoplayRepo,
+            BasicLanguageResultRepository basicLanguageRepo,
+            MarkupErrorResultRepository markupErrorRepo,
+            HeadingResultRepository headingRepo,
+            ResponseTimeResultRepository responseTimeRepo,
+            PauseControlResultRepository pauseControlRepo,
+            FlashingResultRepository flashingRepo
+    ) {
+        this.scanRepo = scanRepo;
+        this.userRepo = userRepo;
+        this.feedbackRepo = feedbackRepo;
+        this.taskRunner = taskRunner;
+        this.props = props;
+        this.reportRepo = reportRepo;
+        this.scanExecutor = scanExecutor;
+        this.altTextRepo = altTextRepo;
+        this.contrastRepo = contrastRepo;
+        this.keyboardRepo = keyboardRepo;
+        this.labelRepo = labelRepo;
+        this.tableRepo = tableRepo;
+        this.videoCaptionRepo = videoCaptionRepo;
+        this.videoAutoplayRepo = videoAutoplayRepo;
+        this.basicLanguageRepo = basicLanguageRepo;
+        this.markupErrorRepo = markupErrorRepo;
+        this.headingRepo = headingRepo;
+        this.responseTimeRepo = responseTimeRepo;
+        this.pauseControlRepo = pauseControlRepo;
+        this.flashingRepo = flashingRepo;
+    }
 
     @Transactional
     public ScanCreateResponse create(Long userId, String url) {
@@ -95,19 +140,14 @@ public class ScanService {
         scan = scanRepo.saveAndFlush(scan);
 
         final UUID finalScanId = scanId;
-        log.info("Registered scan {} for user {}. Scheduling taskRunner.run after commit.", finalScanId, userId);
-        if (TransactionSynchronizationManager.isActualTransactionActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    log.info("Transaction committed. Triggering taskRunner.run for scan {}", finalScanId);
-                    taskRunner.run(finalScanId);
-                }
-            });
-        } else {
-            log.info("No active transaction. Triggering taskRunner.run immediately for scan {}", finalScanId);
-            taskRunner.run(finalScanId);
-        }
+        log.info("Registered scan {} for user {}. Submitting to scanExecutor.", finalScanId, userId);
+        CompletableFuture.runAsync(() -> {
+            try {
+                taskRunner.run(finalScanId);
+            } catch (Exception e) {
+                log.error("Unhandled error running scan {}: {}", finalScanId, e.getMessage(), e);
+            }
+        }, scanExecutor);
 
         ScanDetailDto detail = ScanDetailDto.from(scan, Map.of(), getBaseUrl());
         return new ScanCreateResponse(detail, scanId.toString(), "웹 접근성 검사가 시작되었습니다.");
@@ -247,18 +287,14 @@ public class ScanService {
         scanRepo.saveAndFlush(scan);
 
         final UUID finalRestartScanId = scan.getId();
-        log.info("Restarting scan {}. Scheduling taskRunner.run after commit.", finalRestartScanId);
-        if (TransactionSynchronizationManager.isActualTransactionActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    log.info("Transaction committed. Triggering taskRunner.run for restarted scan {}", finalRestartScanId);
-                    taskRunner.run(finalRestartScanId);
-                }
-            });
-        } else {
-            taskRunner.run(finalRestartScanId);
-        }
+        log.info("Restarting scan {}. Submitting to scanExecutor.", finalRestartScanId);
+        CompletableFuture.runAsync(() -> {
+            try {
+                taskRunner.run(finalRestartScanId);
+            } catch (Exception e) {
+                log.error("Unhandled error running restarted scan {}: {}", finalRestartScanId, e.getMessage(), e);
+            }
+        }, scanExecutor);
 
         ScanDetailDto detail = ScanDetailDto.from(scan, Map.of(), getBaseUrl());
         return new ScanRestartResponse(detail, finalRestartScanId.toString(), "검사가 다시 시작되었습니다.");

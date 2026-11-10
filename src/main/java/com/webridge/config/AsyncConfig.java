@@ -20,11 +20,11 @@ public class AsyncConfig {
     public ThreadPoolTaskExecutor scanExecutor() {
         int poolSize = (properties.scan() != null && properties.scan().executorPoolSize() > 0)
                 ? properties.scan().executorPoolSize()
-                : 1;
+                : 4;
 
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(poolSize);
-        executor.setMaxPoolSize(poolSize);
+        executor.setMaxPoolSize(Math.max(poolSize * 2, 8));
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("scan-");
         executor.setTaskDecorator(new MdcTaskDecorator());

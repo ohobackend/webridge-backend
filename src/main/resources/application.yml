@@ -69,7 +69,7 @@ webridge:
   openai-api-key: ${OPENAI_API_KEY:}
   reports-dir: ./reports
   scan:
-    executor-pool-size: 1
+    executor-pool-size: 4
     task-timeout-seconds: 900
   social:
     google:
