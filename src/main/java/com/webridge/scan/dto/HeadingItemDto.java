@@ -31,6 +31,7 @@ public record HeadingItemDto(
         String elementHtml,
         boolean compliant,
         String message,
+        String complianceRate,
         Map<String, Object> detailedResults,
         OffsetDateTime createdAt
 ) {
@@ -65,6 +66,7 @@ public record HeadingItemDto(
                 r.getElementHtml(),
                 r.isCompliant(),
                 r.getMessage(),
+                r.getComplianceRate() != null ? r.getComplianceRate() : "100%",
                 r.getDetailedResults(),
                 r.getCreatedAt()
         );

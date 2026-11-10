@@ -118,6 +118,10 @@ public class HeadingResult {
     private String message;
 
     @Builder.Default
+    @Column(name = "compliance_rate", length = 50)
+    private String complianceRate = "100%";
+
+    @Builder.Default
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "detailed_results", columnDefinition = "jsonb")
     private Map<String, Object> detailedResults = new HashMap<>();

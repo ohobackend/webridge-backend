@@ -278,6 +278,7 @@ CREATE TABLE IF NOT EXISTS heading_results (
     element_html TEXT NOT NULL DEFAULT '',
     compliant BOOLEAN NOT NULL,
     message VARCHAR(200) NOT NULL,
+    compliance_rate VARCHAR(50) NULL DEFAULT '100%',
     detailed_results JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );

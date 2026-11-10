@@ -355,8 +355,14 @@ public class ScanResultSaver {
             String pageTitleText = (String) pageTitle.getOrDefault("text", "");
             int pageTitleLength = pageTitle.get("length") instanceof Number n ? n.intValue() : 0;
 
+            String complianceRate = (String) r.getOrDefault("compliance_rate", "");
+            if (complianceRate == null || complianceRate.isBlank()) {
+                complianceRate = compliant ? "100%" : "0%";
+            }
+
             HeadingResult entity = HeadingResult.builder()
                     .scan(scan)
+                    .complianceRate(complianceRate)
                     .pageTitleExists(pageTitleExists)
                     .pageTitleEmpty(!pageTitleExists || pageTitleText.isBlank())
                     .pageTitleText(pageTitleText)
