@@ -39,6 +39,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -91,7 +93,17 @@ public class ScanService {
         scanRepo.save(scan);
 
         UUID taskId = UUID.randomUUID();
-        taskRunner.run(scan.getId());
+        final UUID finalScanId = scan.getId();
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    taskRunner.run(finalScanId);
+                }
+            });
+        } else {
+            taskRunner.run(finalScanId);
+        }
 
         ScanDetailDto detail = ScanDetailDto.from(scan, Map.of(), getBaseUrl());
         return new ScanCreateResponse(detail, taskId.toString(), "웹 접근성 검사가 시작되었습니다.");
@@ -231,7 +243,17 @@ public class ScanService {
         scanRepo.save(scan);
 
         UUID taskId = UUID.randomUUID();
-        taskRunner.run(scan.getId());
+        final UUID finalRestartScanId = scan.getId();
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    taskRunner.run(finalRestartScanId);
+                }
+            });
+        } else {
+            taskRunner.run(finalRestartScanId);
+        }
 
         ScanDetailDto detail = ScanDetailDto.from(scan, Map.of(), getBaseUrl());
         return new ScanRestartResponse(detail, taskId.toString(), "검사가 다시 시작되었습니다.");

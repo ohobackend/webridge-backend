@@ -32,9 +32,20 @@ public class ScanTaskRunner {
     public void run(UUID scanId) {
         MDC.put("taskId", "scan-" + scanId);
         try {
-            AccessibilityScan scan = scanRepo.findById(scanId).orElse(null);
+            // DB 커밋 딜레이 대비 최대 1초(200ms x 5회) 재시도
+            AccessibilityScan scan = null;
+            for (int i = 0; i < 5; i++) {
+                scan = scanRepo.findById(scanId).orElse(null);
+                if (scan != null) {
+                    break;
+                }
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException ignored) {}
+            }
+
             if (scan == null) {
-                log.error("Scan {} not found", scanId);
+                log.error("Scan {} not found after retries", scanId);
                 return;
             }
 
