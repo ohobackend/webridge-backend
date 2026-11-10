@@ -9,7 +9,6 @@ import com.webridge.user.dto.UserProfileResponse;
 import com.webridge.user.dto.UserUpdateRequest;
 import com.webridge.user.entity.User;
 import com.webridge.user.repository.UserRepository;
-import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -29,7 +28,6 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final JdbcTemplate jdbcTemplate;
-    private final EntityManager entityManager;
 
     @Transactional(readOnly = true)
     public UserProfileResponse getProfile(Long userId) {
@@ -86,9 +84,9 @@ public class UserService {
         // 3. Django 레거시 테이블 데이터 정리 (존재할 경우)
         deleteLegacyDjangoData(userId);
 
-        // 영속성 컨텍스트 초기화 후 사용자 삭제
-        entityManager.clear();
-        userRepository.deleteById(userId);
+        // 4. 사용자 본인 삭제
+        userRepository.delete(user);
+        userRepository.flush();
 
         log.info("User {} ({}) successfully deleted with all cascaded relations", userId, userEmail);
 
@@ -103,57 +101,92 @@ public class UserService {
     }
 
     private void deleteUserScansAndResults(Long userId) {
+        if (!tableExists("accessibility_scans")) {
+            return;
+        }
+
         String scanSubquery = "SELECT id FROM accessibility_scans WHERE user_id = ?";
 
         // 1-1. 스캔 결과에 달린 alt_text_feedbacks 삭제
-        safeDelete("DELETE FROM alt_text_feedbacks WHERE alt_text_result_id IN (SELECT id FROM alt_text_results WHERE scan_id IN (" + scanSubquery + "))", userId);
+        if (tableExists("alt_text_feedbacks") && tableExists("alt_text_results")) {
+            safeDelete("DELETE FROM alt_text_feedbacks WHERE alt_text_result_id IN (SELECT id FROM alt_text_results WHERE scan_id IN (" + scanSubquery + "))", userId);
+        }
 
         // 1-2. 13개 검사 결과 테이블 데이터 삭제
-        safeDelete("DELETE FROM alt_text_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM contrast_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM keyboard_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM label_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM table_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM video_caption_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM video_autoplay_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM basic_language_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM markup_error_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM heading_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM response_time_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM pause_control_results WHERE scan_id IN (" + scanSubquery + ")", userId);
-        safeDelete("DELETE FROM flashing_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        String[] resultTables = {
+            "alt_text_results", "contrast_results", "keyboard_results", "label_results",
+            "table_results", "video_caption_results", "video_autoplay_results", "basic_language_results",
+            "markup_error_results", "heading_results", "response_time_results", "pause_control_results",
+            "flashing_results", "scan_reports"
+        };
+        for (String table : resultTables) {
+            if (tableExists(table)) {
+                safeDelete("DELETE FROM " + table + " WHERE scan_id IN (" + scanSubquery + ")", userId);
+            }
+        }
 
-        // 1-3. 스캔 보고서 삭제
-        safeDelete("DELETE FROM scan_reports WHERE scan_id IN (" + scanSubquery + ")", userId);
-
-        // 1-4. 스캔 레코드 삭제
+        // 1-3. 스캔 레코드 삭제
         safeDelete("DELETE FROM accessibility_scans WHERE user_id = ?", userId);
     }
 
     private void deleteUserUserData(Long userId, String email) {
-        safeDelete("DELETE FROM alt_text_feedbacks WHERE user_id = ?", userId);
-        safeDelete("DELETE FROM feedbacks WHERE user_id = ?", userId);
-        safeDelete("DELETE FROM survey_triggers WHERE user_id = ?", userId);
-        safeDelete("DELETE FROM surveys WHERE user_id = ?", userId);
-        safeDelete("DELETE FROM social_accounts WHERE user_id = ?", userId);
-        if (email != null && !email.isBlank()) {
+        if (tableExists("alt_text_feedbacks")) {
+            safeDelete("DELETE FROM alt_text_feedbacks WHERE user_id = ?", userId);
+        }
+        if (tableExists("feedbacks")) {
+            safeDelete("DELETE FROM feedbacks WHERE user_id = ?", userId);
+        }
+        if (tableExists("survey_triggers")) {
+            safeDelete("DELETE FROM survey_triggers WHERE user_id = ?", userId);
+        }
+        if (tableExists("surveys")) {
+            safeDelete("DELETE FROM surveys WHERE user_id = ?", userId);
+        }
+        if (tableExists("social_accounts")) {
+            safeDelete("DELETE FROM social_accounts WHERE user_id = ?", userId);
+        }
+        if (email != null && !email.isBlank() && tableExists("email_verifications")) {
             safeDelete("DELETE FROM email_verifications WHERE email = ?", email);
         }
     }
 
     private void deleteLegacyDjangoData(Long userId) {
-        safeDelete("DELETE FROM token_blacklist_blacklistedtoken WHERE token_id IN (SELECT id FROM token_blacklist_outstandingtoken WHERE user_id = ?)", userId);
-        safeDelete("DELETE FROM token_blacklist_outstandingtoken WHERE user_id = ?", userId);
-        safeDelete("DELETE FROM core_user_groups WHERE user_id = ?", userId);
-        safeDelete("DELETE FROM core_user_user_permissions WHERE user_id = ?", userId);
-        safeDelete("DELETE FROM django_admin_log WHERE user_id = ?", userId);
+        if (tableExists("token_blacklist_blacklistedtoken") && tableExists("token_blacklist_outstandingtoken")) {
+            safeDelete("DELETE FROM token_blacklist_blacklistedtoken WHERE token_id IN (SELECT id FROM token_blacklist_outstandingtoken WHERE user_id = ?)", userId);
+        }
+        if (tableExists("token_blacklist_outstandingtoken")) {
+            safeDelete("DELETE FROM token_blacklist_outstandingtoken WHERE user_id = ?", userId);
+        }
+        if (tableExists("core_user_groups")) {
+            safeDelete("DELETE FROM core_user_groups WHERE user_id = ?", userId);
+        }
+        if (tableExists("core_user_user_permissions")) {
+            safeDelete("DELETE FROM core_user_user_permissions WHERE user_id = ?", userId);
+        }
+        if (tableExists("django_admin_log")) {
+            safeDelete("DELETE FROM django_admin_log WHERE user_id = ?", userId);
+        }
+    }
+
+    private boolean tableExists(String tableName) {
+        try {
+            Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE LOWER(table_name) = LOWER(?)",
+                Integer.class,
+                tableName
+            );
+            return count != null && count > 0;
+        } catch (Exception e) {
+            log.debug("tableExists check failed for '{}': {}", tableName, e.getMessage());
+            return false;
+        }
     }
 
     private void safeDelete(String sql, Object... args) {
         try {
             jdbcTemplate.update(sql, args);
         } catch (Exception e) {
-            log.debug("safeDelete ignored error for sql '{}': {}", sql, e.getMessage());
+            log.warn("safeDelete error for sql '{}': {}", sql, e.getMessage());
         }
     }
 
