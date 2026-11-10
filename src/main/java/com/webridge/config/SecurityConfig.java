@@ -17,6 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.cors.CorsUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -36,6 +37,8 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(CorsUtils::isPreFlightRequest).permitAll()
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/v1/ping", "/api/v1/ping/**", "/api/v1/health", "/api/v1/health/**").permitAll()
                 .requestMatchers(
                     "/api/v1/auth/register", "/api/v1/auth/register/**",
@@ -75,7 +78,11 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         var c = new CorsConfiguration();
         String allowedOrigins = props.corsAllowedOrigins() != null ? props.corsAllowedOrigins() : "http://localhost:3000";
-        c.setAllowedOrigins(Arrays.stream(allowedOrigins.split(",")).map(String::trim).toList());
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList();
+        c.setAllowedOriginPatterns(origins);
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         c.setAllowedHeaders(List.of("*"));
         c.setAllowCredentials(true);
