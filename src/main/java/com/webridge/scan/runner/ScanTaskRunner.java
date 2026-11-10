@@ -40,7 +40,7 @@ public class ScanTaskRunner {
             // DB 커밋 딜레이 대비 최대 5초(500ms x 10회) 재시도
             AccessibilityScan scan = null;
             for (int i = 0; i < 10; i++) {
-                scan = scanRepo.findById(scanId).orElse(null);
+                scan = scanRepo.findWithUserById(scanId).orElse(null);
                 if (scan != null) {
                     break;
                 }
@@ -52,6 +52,7 @@ public class ScanTaskRunner {
 
             if (scan == null) {
                 log.error("Scan {} not found after 5s retries. Aborting scan task.", scanId);
+                resultSaver.fail(scanId, "스캔 레코드를 찾을 수 없어 작업이 중단되었습니다.");
                 return;
             }
 
@@ -164,11 +165,17 @@ public class ScanTaskRunner {
                 progress.update(scanId, 100, completeMsg, null);
                 log.info("Accessibility scan {} completed successfully", scanId);
 
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log.error("Accessibility scan {} failed: {}", scanId, e.getMessage(), e);
                 resultSaver.fail(scanId, e.getMessage());
                 progress.error(scanId, e.getMessage());
             }
+        } catch (Throwable t) {
+            log.error("Fatal exception in ScanTaskRunner for scan {}: {}", scanId, t.getMessage(), t);
+            try {
+                resultSaver.fail(scanId, "시스템 오류: " + t.getMessage());
+                progress.error(scanId, "시스템 오류: " + t.getMessage());
+            } catch (Exception ignored) {}
         } finally {
             MDC.remove("taskId");
         }

@@ -19,4 +19,7 @@ public interface AccessibilityScanRepository extends JpaRepository<Accessibility
     List<AccessibilityScan> findByUserIdAndStatus(Long userId, ScanStatus status);
     List<AccessibilityScan> findByStatusInAndUpdatedAtBefore(List<ScanStatus> statuses, OffsetDateTime threshold);
     long countByUserId(Long userId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM AccessibilityScan s JOIN FETCH s.user WHERE s.id = :id")
+    Optional<AccessibilityScan> findWithUserById(@org.springframework.data.repository.query.Param("id") UUID id);
 }
