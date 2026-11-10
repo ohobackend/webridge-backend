@@ -84,7 +84,10 @@ public class UserService {
         // 3. Django 레거시 테이블 데이터 정리 (존재할 경우)
         deleteLegacyDjangoData(userId);
 
-        // 4. 사용자 본인 삭제
+        // 4. users 테이블을 참조하는 잔여 외래키 테이블 자동 정리
+        deleteReferencingRows("users", "SELECT ?", userId);
+
+        // 5. 사용자 본인 삭제
         userRepository.delete(user);
         userRepository.flush();
 
@@ -112,7 +115,15 @@ public class UserService {
             safeDelete("DELETE FROM alt_text_feedbacks WHERE alt_text_result_id IN (SELECT id FROM alt_text_results WHERE scan_id IN (" + scanSubquery + "))", userId);
         }
 
-        // 1-2. 13개 검사 결과 테이블 데이터 삭제
+        // 1-2. heading_results의 하위 상세 테이블 명시적 삭제 (Django 레거시 테이블)
+        if (tableExists("popup_heading_details") && tableExists("heading_results")) {
+            safeDelete("DELETE FROM popup_heading_details WHERE heading_result_id IN (SELECT id FROM heading_results WHERE scan_id IN (" + scanSubquery + "))", userId);
+        }
+        if (tableExists("frame_heading_details") && tableExists("heading_results")) {
+            safeDelete("DELETE FROM frame_heading_details WHERE heading_result_id IN (SELECT id FROM heading_results WHERE scan_id IN (" + scanSubquery + "))", userId);
+        }
+
+        // 1-3. 13개 검사 결과 테이블 데이터 삭제 (각 테이블을 참조하는 자식 테이블 먼저 자동 삭제)
         String[] resultTables = {
             "alt_text_results", "contrast_results", "keyboard_results", "label_results",
             "table_results", "video_caption_results", "video_autoplay_results", "basic_language_results",
@@ -121,11 +132,13 @@ public class UserService {
         };
         for (String table : resultTables) {
             if (tableExists(table)) {
+                deleteReferencingRows(table, "SELECT id FROM " + table + " WHERE scan_id IN (" + scanSubquery + ")", userId);
                 safeDelete("DELETE FROM " + table + " WHERE scan_id IN (" + scanSubquery + ")", userId);
             }
         }
 
-        // 1-3. 스캔 레코드 삭제
+        // 1-4. accessibility_scans를 참조하는 잔여 테이블 정리 후 스캔 레코드 삭제
+        deleteReferencingRows("accessibility_scans", scanSubquery, userId);
         safeDelete("DELETE FROM accessibility_scans WHERE user_id = ?", userId);
     }
 
@@ -165,6 +178,42 @@ public class UserService {
         }
         if (tableExists("django_admin_log")) {
             safeDelete("DELETE FROM django_admin_log WHERE user_id = ?", userId);
+        }
+    }
+
+    private void deleteReferencingRows(String parentTable, String parentIdSubquery, Long userId) {
+        if (!tableExists(parentTable)) {
+            return;
+        }
+
+        try {
+            String sql = "SELECT tc.table_name, kcu.column_name " +
+                         "FROM information_schema.table_constraints tc " +
+                         "JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema " +
+                         "JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema " +
+                         "WHERE tc.constraint_type = 'FOREIGN KEY' AND LOWER(ccu.table_name) = LOWER(?)";
+
+            List<Map<String, Object>> childRefs = jdbcTemplate.queryForList(sql, parentTable);
+            for (Map<String, Object> ref : childRefs) {
+                String childTable = null;
+                String childColumn = null;
+                for (Map.Entry<String, Object> entry : ref.entrySet()) {
+                    if ("table_name".equalsIgnoreCase(entry.getKey())) {
+                        childTable = entry.getValue() != null ? entry.getValue().toString() : null;
+                    } else if ("column_name".equalsIgnoreCase(entry.getKey())) {
+                        childColumn = entry.getValue() != null ? entry.getValue().toString() : null;
+                    }
+                }
+
+                if (childTable != null && childColumn != null && !childTable.equalsIgnoreCase(parentTable)) {
+                    if (tableExists(childTable)) {
+                        String deleteChildSql = "DELETE FROM " + childTable + " WHERE " + childColumn + " IN (" + parentIdSubquery + ")";
+                        safeDelete(deleteChildSql, userId);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("deleteReferencingRows check failed for '{}': {}", parentTable, e.getMessage());
         }
     }
 
