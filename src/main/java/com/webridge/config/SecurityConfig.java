@@ -18,6 +18,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.cors.CorsUtils;
+import org.springframework.web.filter.CorsFilter;
 
 import java.util.Arrays;
 import java.util.List;
@@ -75,18 +76,33 @@ public class SecurityConfig {
     }
 
     @Bean
+    public CorsFilter corsFilter() {
+        return new CorsFilter(corsConfigurationSource());
+    }
+    
+    @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         var c = new CorsConfiguration();
-        String allowedOrigins = props.corsAllowedOrigins() != null ? props.corsAllowedOrigins() : "http://localhost:3000";
+        
+        // 환경 변수가 없더라도 배포 도메인이 무조건 포함되도록 기본 fallback 지정
+        String defaultOrigins = "https://mellow-otter-cb3f29.netlify.app,http://localhost:3000,http://127.0.0.1:3000";
+        String allowedOrigins = (props.corsAllowedOrigins() != null && !props.corsAllowedOrigins().isBlank())
+            ? props.corsAllowedOrigins()
+            : defaultOrigins;
         List<String> origins = Arrays.stream(allowedOrigins.split(","))
             .map(String::trim)
             .filter(s -> !s.isEmpty())
             .toList();
+        // 환경변수든 기본값이든 현재 Netlify 주소가 없으면 강제 포함
+        if (!origins.contains("https://mellow-otter-cb3f29.netlify.app")) {
+            origins = new java.util.ArrayList<>(origins);
+            origins.add("https://mellow-otter-cb3f29.netlify.app");
+        }
         c.setAllowedOriginPatterns(origins);
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         c.setAllowedHeaders(List.of("*"));
         c.setAllowCredentials(true);
-
+        c.setMaxAge(3600L);
         var source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", c);
         return source;
