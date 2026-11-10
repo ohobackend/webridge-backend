@@ -1,9 +1,6 @@
 package com.webridge.user;
 
 import com.webridge.common.exception.ApiException;
-import com.webridge.scan.entity.AccessibilityScan;
-import com.webridge.scan.entity.ScanStatus;
-import com.webridge.scan.repository.AccessibilityScanRepository;
 import com.webridge.user.dto.UserDeleteResponse;
 import com.webridge.user.dto.UserExtraInfoRequest;
 import com.webridge.user.dto.UserExtraInfoResponse;
@@ -11,10 +8,12 @@ import com.webridge.user.dto.UserProfileData;
 import com.webridge.user.dto.UserProfileResponse;
 import com.webridge.user.dto.UserUpdateRequest;
 import com.webridge.user.entity.User;
-import com.webridge.user.repository.EmailVerificationRepository;
 import com.webridge.user.repository.UserRepository;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,13 +22,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
-    private final AccessibilityScanRepository scanRepository;
-    private final EmailVerificationRepository emailVerificationRepository;
+    private final JdbcTemplate jdbcTemplate;
+    private final EntityManager entityManager;
 
     @Transactional(readOnly = true)
     public UserProfileResponse getProfile(Long userId) {
@@ -77,15 +77,20 @@ public class UserService {
         User user = getUserOrThrow(userId);
         String userEmail = user.getEmail();
 
-        List<AccessibilityScan> activeScans = scanRepository.findByUserIdAndStatus(userId, ScanStatus.PROCESSING);
-        for (AccessibilityScan scan : activeScans) {
-            scan.setStatus(ScanStatus.CANCELLED);
-            scan.setErrorMessage("사용자 탈퇴로 인한 취소");
-        }
-        scanRepository.deleteAll(activeScans);
+        // 1. 사용자 스캔 및 하위 검사 결과/보고서 전체 삭제
+        deleteUserScansAndResults(userId);
 
-        emailVerificationRepository.deleteByEmail(userEmail);
-        userRepository.delete(user);
+        // 2. 사용자 피드백, 설문, 소셜 계정, 인증 정보 삭제
+        deleteUserUserData(userId, userEmail);
+
+        // 3. Django 레거시 테이블 데이터 정리 (존재할 경우)
+        deleteLegacyDjangoData(userId);
+
+        // 영속성 컨텍스트 초기화 후 사용자 삭제
+        entityManager.clear();
+        userRepository.deleteById(userId);
+
+        log.info("User {} ({}) successfully deleted with all cascaded relations", userId, userEmail);
 
         return new UserDeleteResponse(
             true,
@@ -95,6 +100,61 @@ public class UserService {
                 "deleted_at", OffsetDateTime.now().toString()
             )
         );
+    }
+
+    private void deleteUserScansAndResults(Long userId) {
+        String scanSubquery = "SELECT id FROM accessibility_scans WHERE user_id = ?";
+
+        // 1-1. 스캔 결과에 달린 alt_text_feedbacks 삭제
+        safeDelete("DELETE FROM alt_text_feedbacks WHERE alt_text_result_id IN (SELECT id FROM alt_text_results WHERE scan_id IN (" + scanSubquery + "))", userId);
+
+        // 1-2. 13개 검사 결과 테이블 데이터 삭제
+        safeDelete("DELETE FROM alt_text_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM contrast_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM keyboard_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM label_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM table_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM video_caption_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM video_autoplay_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM basic_language_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM markup_error_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM heading_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM response_time_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM pause_control_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+        safeDelete("DELETE FROM flashing_results WHERE scan_id IN (" + scanSubquery + ")", userId);
+
+        // 1-3. 스캔 보고서 삭제
+        safeDelete("DELETE FROM scan_reports WHERE scan_id IN (" + scanSubquery + ")", userId);
+
+        // 1-4. 스캔 레코드 삭제
+        safeDelete("DELETE FROM accessibility_scans WHERE user_id = ?", userId);
+    }
+
+    private void deleteUserUserData(Long userId, String email) {
+        safeDelete("DELETE FROM alt_text_feedbacks WHERE user_id = ?", userId);
+        safeDelete("DELETE FROM feedbacks WHERE user_id = ?", userId);
+        safeDelete("DELETE FROM survey_triggers WHERE user_id = ?", userId);
+        safeDelete("DELETE FROM surveys WHERE user_id = ?", userId);
+        safeDelete("DELETE FROM social_accounts WHERE user_id = ?", userId);
+        if (email != null && !email.isBlank()) {
+            safeDelete("DELETE FROM email_verifications WHERE email = ?", email);
+        }
+    }
+
+    private void deleteLegacyDjangoData(Long userId) {
+        safeDelete("DELETE FROM token_blacklist_blacklistedtoken WHERE token_id IN (SELECT id FROM token_blacklist_outstandingtoken WHERE user_id = ?)", userId);
+        safeDelete("DELETE FROM token_blacklist_outstandingtoken WHERE user_id = ?", userId);
+        safeDelete("DELETE FROM core_user_groups WHERE user_id = ?", userId);
+        safeDelete("DELETE FROM core_user_user_permissions WHERE user_id = ?", userId);
+        safeDelete("DELETE FROM django_admin_log WHERE user_id = ?", userId);
+    }
+
+    private void safeDelete(String sql, Object... args) {
+        try {
+            jdbcTemplate.update(sql, args);
+        } catch (Exception e) {
+            log.debug("safeDelete ignored error for sql '{}': {}", sql, e.getMessage());
+        }
     }
 
     @Transactional

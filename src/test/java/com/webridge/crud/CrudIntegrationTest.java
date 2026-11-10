@@ -172,12 +172,35 @@ class CrudIntegrationTest {
     }
 
     @Test
-    @DisplayName("DELETE /api/v1/user/me - 회원 탈퇴 시 계정 삭제 및 진행 중 스캔 취소")
+    @DisplayName("DELETE /api/v1/user/me - 회원 탈퇴 시 계정 및 연관된 모든 스캔, 피드백, 설문 데이터 삭제")
     void deleteUserAccount() throws Exception {
-        AccessibilityScan activeScan = scanRepository.save(AccessibilityScan.builder()
+        AccessibilityScan completedScan = scanRepository.save(AccessibilityScan.builder()
             .user(testUser)
             .url("https://example.com")
-            .status(ScanStatus.PROCESSING)
+            .status(ScanStatus.COMPLETED)
+            .build());
+
+        AltTextResult altResult = altTextResultRepository.save(AltTextResult.builder()
+            .scan(completedScan)
+            .imgUrl("https://example.com/test.png")
+            .compliance(1)
+            .build());
+
+        altTextFeedbackRepository.save(com.webridge.alttextfeedback.entity.AltTextFeedback.builder()
+            .altTextResult(altResult)
+            .user(testUser)
+            .rating("good")
+            .build());
+
+        feedbackRepository.save(com.webridge.feedback.entity.Feedback.builder()
+            .user(testUser)
+            .content("좋은 서비스입니다.")
+            .rating(5)
+            .build());
+
+        surveyTriggerRepository.save(com.webridge.survey.entity.SurveyTrigger.builder()
+            .user(testUser)
+            .completedScansCount(1)
             .build());
 
         mockMvc.perform(delete("/api/v1/user/me")
@@ -187,10 +210,11 @@ class CrudIntegrationTest {
             .andExpect(jsonPath("$.data.deleted_email").value("crudtest@example.com"));
 
         assertThat(userRepository.findById(testUser.getId())).isEmpty();
-        AccessibilityScan updatedScan = scanRepository.findById(activeScan.getId()).orElse(null);
-        if (updatedScan != null) {
-            assertThat(updatedScan.getStatus()).isEqualTo(ScanStatus.CANCELLED);
-        }
+        assertThat(scanRepository.findById(completedScan.getId())).isEmpty();
+        assertThat(altTextResultRepository.findById(altResult.getId())).isEmpty();
+        assertThat(altTextFeedbackRepository.findAll()).isEmpty();
+        assertThat(feedbackRepository.findAll()).isEmpty();
+        assertThat(surveyTriggerRepository.findAll()).isEmpty();
     }
 
     // ==========================================
