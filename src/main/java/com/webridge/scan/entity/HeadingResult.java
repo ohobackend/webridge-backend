@@ -87,7 +87,7 @@ public class HeadingResult {
     private int headingsWithoutContent = 0;
 
     @Builder.Default
-    @Column(name = "total_semantic_sections", nullable = false)
+    @Column(name = "total_semantic_sections")
     private int totalSemanticSections = 0;
 
     @Builder.Default
@@ -108,7 +108,7 @@ public class HeadingResult {
     private List<Map<String, Object>> issuesDetails = new ArrayList<>();
 
     @Builder.Default
-    @Column(name = "element_html", columnDefinition = "text", nullable = false)
+    @Column(name = "element_html", columnDefinition = "text")
     private String elementHtml = "";
 
     @Column(nullable = false)
@@ -119,7 +119,7 @@ public class HeadingResult {
 
     @Builder.Default
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "detailed_results", columnDefinition = "jsonb", nullable = false)
+    @Column(name = "detailed_results", columnDefinition = "jsonb")
     private Map<String, Object> detailedResults = new HashMap<>();
 
     @CreationTimestamp
