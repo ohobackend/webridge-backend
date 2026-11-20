@@ -10,6 +10,7 @@ public record UserProfileData(
     String name,
     String provider,
     boolean isActive,
+    boolean isAdmin,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt
 ) {
@@ -20,6 +21,7 @@ public record UserProfileData(
             user.getName(),
             user.getProvider(),
             user.isActive(),
+            user.isAdmin(),
             user.getCreatedAt(),
             user.getUpdatedAt()
         );

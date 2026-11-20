@@ -10,6 +10,7 @@ public record UserDto(
     String email,
     String name,
     String provider,
+    boolean isAdmin,
     OffsetDateTime createdAt,
     AgreementsDto agreements,
     boolean needsTermsUpdate
@@ -29,6 +30,7 @@ public record UserDto(
             user.getEmail(),
             user.getName(),
             user.getProvider(),
+            user.isAdmin(),
             user.getCreatedAt(),
             new AgreementsDto(
                 user.isServiceTermsAgreed(),
