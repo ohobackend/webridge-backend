@@ -14,12 +14,16 @@ import com.webridge.terms.entity.Terms;
 import com.webridge.terms.repository.TermsRepository;
 import com.webridge.user.entity.User;
 import com.webridge.user.repository.UserRepository;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import com.webridge.auth.jwt.JwtProvider;
@@ -104,7 +108,33 @@ public class AdminService {
         String searchKeyword = (search != null && !search.isBlank()) ? search.trim() : null;
         String providerFilter = (provider != null && !provider.isBlank()) ? provider.trim() : null;
 
-        Page<User> userPage = userRepository.searchUsers(searchKeyword, isAdmin, isActive, providerFilter, pageable);
+        Specification<User> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (searchKeyword != null) {
+                String pattern = "%" + searchKeyword.toLowerCase() + "%";
+                predicates.add(cb.or(
+                    cb.like(cb.lower(root.get("email")), pattern),
+                    cb.like(cb.lower(root.get("name")), pattern)
+                ));
+            }
+
+            if (isAdmin != null) {
+                predicates.add(cb.equal(root.get("isAdmin"), isAdmin));
+            }
+
+            if (isActive != null) {
+                predicates.add(cb.equal(root.get("isActive"), isActive));
+            }
+
+            if (providerFilter != null) {
+                predicates.add(cb.equal(cb.lower(root.get("provider")), providerFilter.toLowerCase()));
+            }
+
+            return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<User> userPage = userRepository.findAll(spec, pageable);
 
         List<AdminUserSummaryDto> dtos = userPage.getContent().stream()
             .map(u -> {
@@ -175,8 +205,29 @@ public class AdminService {
                 scanStatus = ScanStatus.fromValue(status.trim().toLowerCase());
             } catch (Exception ignored) {}
         }
+        final ScanStatus targetStatus = scanStatus;
 
-        Page<AccessibilityScan> scanPage = scanRepository.searchScans(searchKeyword, scanStatus, pageable);
+        Specification<AccessibilityScan> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (searchKeyword != null) {
+                String pattern = "%" + searchKeyword.toLowerCase() + "%";
+                Join<AccessibilityScan, User> userJoin = root.join("user", JoinType.LEFT);
+                predicates.add(cb.or(
+                    cb.like(cb.lower(root.get("url")), pattern),
+                    cb.like(cb.lower(root.get("title")), pattern),
+                    cb.like(cb.lower(userJoin.get("email")), pattern)
+                ));
+            }
+
+            if (targetStatus != null) {
+                predicates.add(cb.equal(root.get("status"), targetStatus));
+            }
+
+            return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<AccessibilityScan> scanPage = scanRepository.findAll(spec, pageable);
 
         List<AdminScanSummaryDto> dtos = scanPage.getContent().stream()
             .map(AdminScanSummaryDto::from)

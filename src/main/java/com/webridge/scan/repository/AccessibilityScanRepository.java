@@ -5,6 +5,7 @@ import com.webridge.scan.entity.ScanStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -13,7 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface AccessibilityScanRepository extends JpaRepository<AccessibilityScan, UUID> {
+public interface AccessibilityScanRepository extends JpaRepository<AccessibilityScan, UUID>, JpaSpecificationExecutor<AccessibilityScan> {
     Page<AccessibilityScan> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
     Page<AccessibilityScan> findByUserId(Long userId, Pageable pageable);
     Page<AccessibilityScan> findByUserIdAndStatus(Long userId, ScanStatus status, Pageable pageable);
@@ -24,16 +25,6 @@ public interface AccessibilityScanRepository extends JpaRepository<Accessibility
 
     @Query("SELECT s FROM AccessibilityScan s JOIN FETCH s.user WHERE s.id = :id")
     Optional<AccessibilityScan> findWithUserById(@Param("id") UUID id);
-
-    // 관리자용 메서드
-    @Query("SELECT s FROM AccessibilityScan s LEFT JOIN s.user u WHERE " +
-           "(:search IS NULL OR LOWER(s.url) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(s.title) LIKE LOWER(CONCAT('%', :search, '%')) OR (u IS NOT NULL AND LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))) AND " +
-           "(:status IS NULL OR s.status = :status)")
-    Page<AccessibilityScan> searchScans(
-        @Param("search") String search,
-        @Param("status") ScanStatus status,
-        Pageable pageable
-    );
 
     long countByCreatedAtAfter(OffsetDateTime dateTime);
 
