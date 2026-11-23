@@ -6,6 +6,8 @@ import com.webridge.alttextfeedback.entity.AltTextFeedback;
 import com.webridge.alttextfeedback.repository.AltTextFeedbackRepository;
 import com.webridge.common.dto.PaginatedResponse;
 import com.webridge.common.exception.ApiException;
+import com.webridge.feedback.entity.Feedback;
+import com.webridge.feedback.repository.FeedbackRepository;
 import com.webridge.scan.dto.ScanDetailDto;
 import com.webridge.scan.entity.AccessibilityScan;
 import com.webridge.scan.entity.AltTextResult;
@@ -50,6 +52,7 @@ public class AdminService {
     private final ScanReportRepository reportRepository;
     private final TermsRepository termsRepository;
     private final AltTextFeedbackRepository altTextFeedbackRepository;
+    private final FeedbackRepository feedbackRepository;
     private final JwtProvider jwtProvider;
     private final PasswordEncoder passwordEncoder;
 
@@ -508,6 +511,71 @@ public class AdminService {
             totalDislikes,
             dtos
         );
+    }
+
+    // ==========================================
+    // 6. 서비스 이용 피드백 관리 (Service Feedback)
+    // ==========================================
+
+    @Transactional(readOnly = true)
+    public AdminFeedbackPaginatedResponse getFeedbacks(Integer rating, String search, int page, int size) {
+        int pageIndex = Math.max(0, page - 1);
+        int pageSize = (size > 0) ? Math.min(size, 100) : 20;
+        Pageable pageable = PageRequest.of(pageIndex, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        String searchKeyword = (search != null && !search.isBlank()) ? search.trim() : null;
+
+        Specification<Feedback> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (rating != null && rating >= 1 && rating <= 5) {
+                predicates.add(cb.equal(root.get("rating"), rating));
+            }
+
+            if (searchKeyword != null) {
+                String pattern = "%" + searchKeyword.toLowerCase() + "%";
+                Join<Feedback, User> userJoin = root.join("user", JoinType.LEFT);
+
+                predicates.add(cb.or(
+                    cb.like(cb.lower(root.get("content")), pattern),
+                    cb.like(cb.lower(userJoin.get("email")), pattern),
+                    cb.like(cb.lower(userJoin.get("name")), pattern)
+                ));
+            }
+
+            return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<Feedback> feedbackPage = feedbackRepository.findAll(spec, pageable);
+
+        Double avg = feedbackRepository.findAverageRating();
+        double averageRating = (avg != null) ? Math.round(avg * 10.0) / 10.0 : 0.0;
+
+        Map<String, Long> ratingCounts = new LinkedHashMap<>();
+        for (int r = 5; r >= 1; r--) {
+            ratingCounts.put(String.valueOf(r), feedbackRepository.countByRating(r));
+        }
+
+        List<AdminFeedbackItemDto> dtos = feedbackPage.getContent().stream()
+            .map(AdminFeedbackItemDto::from)
+            .toList();
+
+        return new AdminFeedbackPaginatedResponse(
+            feedbackPage.getTotalElements(),
+            feedbackPage.hasNext() ? String.valueOf(page + 1) : null,
+            feedbackPage.hasPrevious() ? String.valueOf(page - 1) : null,
+            averageRating,
+            ratingCounts,
+            dtos
+        );
+    }
+
+    @Transactional
+    public void deleteFeedback(Long feedbackId) {
+        Feedback feedback = feedbackRepository.findById(feedbackId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, Map.of("detail", "피드백을 찾을 수 없습니다.")));
+
+        feedbackRepository.delete(feedback);
     }
 
     // ==========================================

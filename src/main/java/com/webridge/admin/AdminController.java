@@ -170,4 +170,26 @@ public class AdminController {
     ) {
         return ResponseEntity.ok(adminService.getAltTextFeedbacks(rating, search, page, size));
     }
+
+    // ==========================================
+    // 7. 서비스 이용 피드백 관리 (Service Feedback)
+    // ==========================================
+
+    @GetMapping({"/feedback", "/feedback/"})
+    @Operation(summary = "서비스 피드백 목록 조회", description = "사용자가 남긴 서비스 만족도 별점(1~5점) 및 의견 피드백 목록을 조회 및 검색합니다.")
+    public ResponseEntity<AdminFeedbackPaginatedResponse> getFeedbacks(
+            @RequestParam(required = false) Integer rating,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(adminService.getFeedbacks(rating, search, page, size));
+    }
+
+    @DeleteMapping({"/feedback/{feedbackId}", "/feedback/{feedbackId}/"})
+    @Operation(summary = "서비스 피드백 삭제", description = "관리자 권한으로 특정 서비스 피드백을 삭제합니다.")
+    public ResponseEntity<Void> deleteFeedback(@PathVariable Long feedbackId) {
+        adminService.deleteFeedback(feedbackId);
+        return ResponseEntity.noContent().build();
+    }
 }
