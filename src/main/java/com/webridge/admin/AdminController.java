@@ -155,4 +155,19 @@ public class AdminController {
     public ResponseEntity<AdminSignupSurveyStatsDto> getSignupSurveyStats() {
         return ResponseEntity.ok(adminService.getSignupSurveyStats());
     }
+
+    // ==========================================
+    // 6. AI 대체텍스트 피드백 관리 (Alt Text Feedback)
+    // ==========================================
+
+    @GetMapping({"/alt-text-feedback", "/alt-text-feedback/"})
+    @Operation(summary = "AI 대체텍스트 피드백 목록 조회", description = "사용자가 남긴 AI 대체텍스트 좋아요/싫어요 평가 내역을 검색 및 필터링하여 페이징 조회합니다.")
+    public ResponseEntity<AdminAltTextFeedbackPaginatedResponse> getAltTextFeedbacks(
+            @RequestParam(required = false) String rating,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(adminService.getAltTextFeedbacks(rating, search, page, size));
+    }
 }

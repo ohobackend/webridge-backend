@@ -2,10 +2,13 @@ package com.webridge.admin;
 
 import com.webridge.admin.dto.*;
 import com.webridge.admin.util.SignupSurveyCodeMapper;
+import com.webridge.alttextfeedback.entity.AltTextFeedback;
+import com.webridge.alttextfeedback.repository.AltTextFeedbackRepository;
 import com.webridge.common.dto.PaginatedResponse;
 import com.webridge.common.exception.ApiException;
 import com.webridge.scan.dto.ScanDetailDto;
 import com.webridge.scan.entity.AccessibilityScan;
+import com.webridge.scan.entity.AltTextResult;
 import com.webridge.scan.entity.ScanReport;
 import com.webridge.scan.entity.ScanStatus;
 import com.webridge.scan.repository.AccessibilityScanRepository;
@@ -46,6 +49,7 @@ public class AdminService {
     private final AccessibilityScanRepository scanRepository;
     private final ScanReportRepository reportRepository;
     private final TermsRepository termsRepository;
+    private final AltTextFeedbackRepository altTextFeedbackRepository;
     private final JwtProvider jwtProvider;
     private final PasswordEncoder passwordEncoder;
 
@@ -445,6 +449,64 @@ public class AdminService {
             occStats,
             recentPathOthers,
             recentOccOthers
+        );
+    }
+
+    // ==========================================
+    // 5. AI 대체텍스트 피드백 관리 (Alt Text Feedback)
+    // ==========================================
+
+    @Transactional(readOnly = true)
+    public AdminAltTextFeedbackPaginatedResponse getAltTextFeedbacks(String rating, String search, int page, int size) {
+        int pageIndex = Math.max(0, page - 1);
+        int pageSize = (size > 0) ? Math.min(size, 100) : 20;
+        Pageable pageable = PageRequest.of(pageIndex, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        String ratingFilter = (rating != null && !rating.isBlank()) ? rating.trim().toLowerCase() : null;
+        String searchKeyword = (search != null && !search.isBlank()) ? search.trim() : null;
+
+        Specification<AltTextFeedback> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (ratingFilter != null) {
+                predicates.add(cb.equal(cb.lower(root.get("rating")), ratingFilter));
+            }
+
+            if (searchKeyword != null) {
+                String pattern = "%" + searchKeyword.toLowerCase() + "%";
+                Join<AltTextFeedback, AltTextResult> resultJoin = root.join("altTextResult", JoinType.LEFT);
+                Join<AltTextResult, AccessibilityScan> scanJoin = resultJoin.join("scan", JoinType.LEFT);
+                Join<AltTextFeedback, User> userJoin = root.join("user", JoinType.LEFT);
+
+                predicates.add(cb.or(
+                    cb.like(cb.lower(scanJoin.get("url")), pattern),
+                    cb.like(cb.lower(scanJoin.get("title")), pattern),
+                    cb.like(cb.lower(resultJoin.get("altText")), pattern),
+                    cb.like(cb.lower(resultJoin.get("suggestedAlt")), pattern),
+                    cb.like(cb.lower(resultJoin.get("aiImprovement")), pattern),
+                    cb.like(cb.lower(userJoin.get("email")), pattern)
+                ));
+            }
+
+            return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<AltTextFeedback> feedbackPage = altTextFeedbackRepository.findAll(spec, pageable);
+
+        long totalLikes = altTextFeedbackRepository.countByRatingIgnoreCase("like");
+        long totalDislikes = altTextFeedbackRepository.countByRatingIgnoreCase("dislike");
+
+        List<AdminAltTextFeedbackItemDto> dtos = feedbackPage.getContent().stream()
+            .map(AdminAltTextFeedbackItemDto::from)
+            .toList();
+
+        return new AdminAltTextFeedbackPaginatedResponse(
+            feedbackPage.getTotalElements(),
+            feedbackPage.hasNext() ? String.valueOf(page + 1) : null,
+            feedbackPage.hasPrevious() ? String.valueOf(page - 1) : null,
+            totalLikes,
+            totalDislikes,
+            dtos
         );
     }
 
