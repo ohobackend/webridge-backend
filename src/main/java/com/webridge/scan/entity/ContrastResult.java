@@ -54,6 +54,12 @@ public class ContrastResult {
     @Column(name = "wcag_compliant", nullable = false)
     private boolean wcagCompliant;
 
+    @Column(name = "screenshot_url", columnDefinition = "text")
+    private String screenshotUrl;
+
+    @Column(name = "capture_url", columnDefinition = "text")
+    private String captureUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

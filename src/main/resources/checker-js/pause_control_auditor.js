@@ -186,12 +186,32 @@ async (durationSeconds) => {
             element.classList.remove('aca-highlight-testing');
             element.classList.add(resultStatus === 'PASS' ? 'aca-highlight-pass' : 'aca-highlight-fail');
 
+            let captureUrl = null;
+            try {
+                const img = element.querySelector('img') || (element.tagName === 'IMG' ? element : null);
+                if (img && img.src) {
+                    captureUrl = img.src;
+                } else {
+                    const video = element.querySelector('video') || (element.tagName === 'VIDEO' ? element : null);
+                    if (video) {
+                        captureUrl = video.poster || video.src || null;
+                    }
+                }
+                if (!captureUrl) {
+                    const bg = window.getComputedStyle(element).backgroundImage;
+                    if (bg && bg.startsWith('url(')) {
+                        captureUrl = bg.slice(4, -1).replace(/["']/g, "");
+                    }
+                }
+            } catch (e) {}
+
             this.scanResults.push({
                 element: element,
                 tag: this.getTagInfo(element),
                 status: resultStatus,
                 btn: btnName,
-                outerHTML: element.outerHTML.substring(0, 200)
+                outerHTML: element.outerHTML.substring(0, 300),
+                captureUrl: captureUrl
             });
         }
 
@@ -256,7 +276,9 @@ async (durationSeconds) => {
                 hasPauseButton: item.status === 'PASS',
                 html: item.outerHTML,
                 tag: item.tag,
-                debug_btn: item.btn
+                debug_btn: item.btn,
+                capture_url: item.captureUrl,
+                screenshot_url: item.captureUrl
             })),
             animatedElementsCount: rawResults.length
         };

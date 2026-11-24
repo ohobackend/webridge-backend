@@ -123,6 +123,7 @@ public class ScanResultSaver {
             String bgColor = (String) r.getOrDefault("background_color", "");
             double contrastRatio = r.get("contrast_ratio") instanceof Number n ? n.doubleValue() : 0.0;
             boolean wcagCompliant = Boolean.TRUE.equals(r.get("wcag_compliant"));
+            String screenshotUrl = (String) r.getOrDefault("screenshot_url", r.get("capture_url"));
 
             ContrastResult entity = ContrastResult.builder()
                     .scan(scan)
@@ -132,6 +133,8 @@ public class ScanResultSaver {
                     .backgroundColor(bgColor != null ? bgColor : "")
                     .contrastRatio(contrastRatio)
                     .wcagCompliant(wcagCompliant)
+                    .screenshotUrl(screenshotUrl)
+                    .captureUrl(screenshotUrl)
                     .build();
             contrastRepo.save(entity);
             scan.getContrastResults().add(entity);
@@ -198,6 +201,7 @@ public class ScanResultSaver {
             String elementHtml = (String) r.getOrDefault("element_html", "");
             boolean compliant = Boolean.TRUE.equals(r.get("compliant"));
             String message = (String) r.getOrDefault("message", "");
+            String screenshotUrl = (String) r.getOrDefault("screenshot_url", r.get("capture_url"));
 
             TableResult entity = TableResult.builder()
                     .scan(scan)
@@ -206,6 +210,8 @@ public class ScanResultSaver {
                     .elementHtml(elementHtml != null ? elementHtml : "")
                     .compliant(compliant)
                     .message(message != null ? message : "")
+                    .screenshotUrl(screenshotUrl)
+                    .captureUrl(screenshotUrl)
                     .build();
             tableRepo.save(entity);
             scan.getTableResults().add(entity);
@@ -428,6 +434,7 @@ public class ScanResultSaver {
             boolean hasPause = Boolean.TRUE.equals(r.get("has_pause"));
             boolean compliant = Boolean.TRUE.equals(r.get("compliant"));
             String message = (String) r.getOrDefault("message", "");
+            String screenshotUrl = (String) r.getOrDefault("screenshot_url", r.get("capture_url"));
 
             PauseControlResult entity = PauseControlResult.builder()
                     .scan(scan)
@@ -437,6 +444,8 @@ public class ScanResultSaver {
                     .hasPause(hasPause)
                     .compliant(compliant)
                     .message(message != null ? message : "")
+                    .screenshotUrl(screenshotUrl)
+                    .captureUrl(screenshotUrl)
                     .build();
             pauseControlRepo.save(entity);
             scan.getPauseControlResults().add(entity);

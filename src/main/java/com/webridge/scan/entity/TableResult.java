@@ -51,6 +51,12 @@ public class TableResult {
     @Column(length = 200, nullable = false)
     private String message;
 
+    @Column(name = "screenshot_url", columnDefinition = "text")
+    private String screenshotUrl;
+
+    @Column(name = "capture_url", columnDefinition = "text")
+    private String captureUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

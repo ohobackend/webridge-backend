@@ -785,6 +785,9 @@ public class AccessibilityChecker implements AutoCloseable {
                         item.put("has_pause", hasPause);
                         item.put("compliant", compliant);
                         item.put("message", compliant ? "정지 기능 제공됨" : "자동 이동 콘텐츠에 정지 기능 누락");
+                        String captureUrl = (String) el.get("capture_url");
+                        item.put("capture_url", captureUrl);
+                        item.put("screenshot_url", captureUrl);
                         results.add(item);
                     }
                 }
