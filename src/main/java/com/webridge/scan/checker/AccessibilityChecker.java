@@ -7,6 +7,9 @@ import com.microsoft.playwright.ElementHandle;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.options.BoundingBox;
+import com.microsoft.playwright.options.ScreenshotAnimations;
+import com.microsoft.playwright.options.ScreenshotType;
 import com.microsoft.playwright.options.WaitUntilState;
 import lombok.extern.slf4j.Slf4j;
 
@@ -214,6 +217,8 @@ public class AccessibilityChecker implements AutoCloseable {
 
                     boolean compliant = !headers.isEmpty() && !rows.isEmpty();
 
+                    String screenshotUrl = captureElementScreenshot(table);
+
                     Map<String, Object> item = new HashMap<>();
                     item.put("headers", headers.size());
                     item.put("rows", rows.size());
@@ -222,6 +227,8 @@ public class AccessibilityChecker implements AutoCloseable {
                     item.put("headers_with_scope", headersWithScope);
                     item.put("compliant", compliant);
                     item.put("message", compliant ? "표 구성 확인 완료" : "표 구성 오류");
+                    item.put("screenshot_url", screenshotUrl);
+                    item.put("capture_url", screenshotUrl);
                     results.add(item);
                 } catch (Exception ignored) {}
             }
@@ -726,6 +733,8 @@ public class AccessibilityChecker implements AutoCloseable {
                     double contrastRatio = ContrastCalculator.calculateContrastRatio(fgColor, bgColor);
                     boolean compliant = contrastRatio >= 4.5;
 
+                    String screenshotUrl = captureElementScreenshot(element, 1500);
+
                     Map<String, Object> item = new HashMap<>();
                     item.put("text", text.length() > 50 ? text.substring(0, 50) + "..." : text);
                     item.put("element_html", elementHtml);
@@ -733,6 +742,8 @@ public class AccessibilityChecker implements AutoCloseable {
                     item.put("background_color", bgColor);
                     item.put("contrast_ratio", Math.round(contrastRatio * 100.0) / 100.0);
                     item.put("wcag_compliant", compliant);
+                    item.put("screenshot_url", screenshotUrl);
+                    item.put("capture_url", screenshotUrl);
                     results.add(item);
 
                     if (results.size() >= 100) {
@@ -785,11 +796,22 @@ public class AccessibilityChecker implements AutoCloseable {
                         item.put("has_pause", hasPause);
                         item.put("compliant", compliant);
                         item.put("message", compliant ? "정지 기능 제공됨" : "자동 이동 콘텐츠에 정지 기능 누락");
-                        String captureUrl = (String) el.get("capture_url");
-                        item.put("capture_url", captureUrl);
-                        item.put("screenshot_url", captureUrl);
+                        String captureId = (String) el.get("capture_id");
+                        String screenshotUrl = null;
+                        if (captureId != null && !captureId.isBlank()) {
+                            Locator targetLocator = page.locator("[data-aca-pause-id=\"" + captureId + "\"]").first();
+                            screenshotUrl = captureElementScreenshot(targetLocator);
+                        }
+                        if (screenshotUrl == null || screenshotUrl.isBlank()) {
+                            screenshotUrl = (String) el.get("capture_url");
+                        }
+                        item.put("capture_url", screenshotUrl);
+                        item.put("screenshot_url", screenshotUrl);
                         results.add(item);
                     }
+                    try {
+                        page.evaluate("() => document.querySelectorAll('[data-aca-pause-id]').forEach(el => el.removeAttribute('data-aca-pause-id'))");
+                    } catch (Exception ignored) {}
                 }
             }
         } catch (Exception e) {
@@ -930,6 +952,75 @@ public class AccessibilityChecker implements AutoCloseable {
             ));
         }
         return results;
+    }
+
+    private String captureElementScreenshot(Locator locator) {
+        return captureElementScreenshot(locator, 3000);
+    }
+
+    private String captureElementScreenshot(Locator locator, double timeoutMs) {
+        if (locator == null) {
+            return null;
+        }
+        try {
+            if (locator.count() == 0 || !locator.isVisible()) {
+                return null;
+            }
+            BoundingBox box = locator.boundingBox(new Locator.BoundingBoxOptions().setTimeout(Math.min(timeoutMs, 2000)));
+            if (box == null || box.width < 2 || box.height < 2) {
+                return null;
+            }
+
+            byte[] bytes = null;
+            if (box.width <= 1920 && box.height <= 1200) {
+                try {
+                    bytes = locator.screenshot(new Locator.ScreenshotOptions()
+                            .setType(ScreenshotType.JPEG)
+                            .setQuality(70)
+                            .setAnimations(ScreenshotAnimations.DISABLED)
+                            .setTimeout(timeoutMs));
+                } catch (Exception e) {
+                    log.debug("Direct locator.screenshot failed, trying clipped fallback: {}", e.getMessage());
+                }
+            }
+
+            if (bytes == null) {
+                bytes = captureByClippedViewport(locator, timeoutMs);
+            }
+
+            if (bytes != null && bytes.length > 0) {
+                return "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(bytes);
+            }
+        } catch (Exception e) {
+            log.debug("captureElementScreenshot failed: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private byte[] captureByClippedViewport(Locator locator, double timeoutMs) {
+        try {
+            locator.scrollIntoViewIfNeeded(new Locator.ScrollIntoViewIfNeededOptions().setTimeout(Math.min(timeoutMs, 1500)));
+            BoundingBox box = locator.boundingBox(new Locator.BoundingBoxOptions().setTimeout(Math.min(timeoutMs, 1500)));
+            if (box == null || box.width < 2 || box.height < 2) {
+                return null;
+            }
+            double x = Math.max(0, box.x);
+            double y = Math.max(0, box.y);
+            double width = Math.min(box.width, 1920 - x);
+            double height = Math.min(box.height, 800);
+            if (width < 2 || height < 2) {
+                return null;
+            }
+            return page.screenshot(new Page.ScreenshotOptions()
+                    .setType(ScreenshotType.JPEG)
+                    .setQuality(70)
+                    .setAnimations(ScreenshotAnimations.DISABLED)
+                    .setClip(x, y, width, height)
+                    .setTimeout(timeoutMs));
+        } catch (Exception e) {
+            log.debug("captureByClippedViewport failed: {}", e.getMessage());
+            return null;
+        }
     }
 
     private boolean isSvgImage(String imgUrl) {

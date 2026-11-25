@@ -17,14 +17,17 @@ class AccessibilityCheckerTest {
     private static CheckerScripts scripts;
     private static String accessibleUrl;
     private static String inaccessibleUrl;
+    private static String pauseControlUrl;
 
     @BeforeAll
     static void setUp() throws IOException {
         scripts = new CheckerScripts();
         File accessibleFile = new ClassPathResource("fixtures/accessible_page.html").getFile();
         File inaccessibleFile = new ClassPathResource("fixtures/inaccessible_page.html").getFile();
+        File pauseControlFile = new ClassPathResource("fixtures/pause_control_page.html").getFile();
         accessibleUrl = accessibleFile.toURI().toString();
         inaccessibleUrl = inaccessibleFile.toURI().toString();
+        pauseControlUrl = pauseControlFile.toURI().toString();
     }
 
     @Test
@@ -50,6 +53,7 @@ class AccessibilityCheckerTest {
             var tableResults = checker.checkTables();
             assertThat(tableResults).hasSize(1);
             assertThat(tableResults.get(0).get("compliant")).isEqualTo(true);
+            assertThat((String) tableResults.get(0).get("screenshot_url")).startsWith("data:image/jpeg;base64,");
 
             // 4. Keyboard
             var keyboardResults = checker.checkKeyboard();
@@ -114,6 +118,36 @@ class AccessibilityCheckerTest {
             // 7. Contrast: low-contrast text
             var contrastResults = checker.checkContrast();
             assertThat(contrastResults).anyMatch(r -> Boolean.FALSE.equals(r.get("wcag_compliant")));
+            assertThat(contrastResults).anyMatch(r -> {
+                String url = (String) r.get("screenshot_url");
+                return url != null && url.startsWith("data:image/jpeg;base64,");
+            });
+        }
+    }
+
+    @Test
+    @DisplayName("Verify pause control captures DOM screenshots for non-img containers and excludes pagination bullets")
+    void checkPauseControlCapturesScreenshotsAndExcludesPaginationBullets() {
+        try (AccessibilityChecker checker = new AccessibilityChecker(pauseControlUrl, scripts, null)) {
+            List<Map<String, Object>> results = checker.checkPauseControl(3);
+
+            assertThat(results).isNotEmpty();
+            // pagination bullet 요소는 검사 결과에서 제외되어야 함
+            assertThat(results).noneMatch(r -> {
+                String tag = String.valueOf(r.get("tag"));
+                String html = String.valueOf(r.get("element_html"));
+                return tag.contains("pagination") || tag.contains("bullet") || html.contains("flicking-pagination-bullet");
+            });
+            // 모든 수집 항목에 실제 DOM 캡처 이미지(data:image/jpeg;base64,...)가 포함되어야 함
+            assertThat(results).allSatisfy(r -> {
+                String screenshotUrl = (String) r.get("screenshot_url");
+                String captureUrl = (String) r.get("capture_url");
+                assertThat(screenshotUrl).isNotNull().startsWith("data:image/jpeg;base64,");
+                assertThat(captureUrl).isEqualTo(screenshotUrl);
+            });
+            // 텍스트 배너(#promo-banner)와 캐러셀 컨테이너(.flicking-viewport)가 컨테이너 단위로 수집되어야 함
+            assertThat(results).anyMatch(r -> String.valueOf(r.get("tag")).contains("promo-banner"));
+            assertThat(results).anyMatch(r -> String.valueOf(r.get("tag")).contains("flicking-viewport"));
         }
     }
 }

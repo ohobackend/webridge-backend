@@ -29,8 +29,8 @@ async (durationSeconds) => {
 
             const movingElements = this.getMovingElements();
 
-            for (const el of movingElements) {
-                await this.testElement(el);
+            for (let i = 0; i < movingElements.length; i++) {
+                await this.testElement(movingElements[i], i);
             }
             return this.scanResults;
         }
@@ -89,11 +89,145 @@ async (durationSeconds) => {
         }
 
         isStrictlyHidden(el) {
+            if (!el || el.nodeType !== 1) return true;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) return true;
             const rect = el.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) return true;
             return false;
+        }
+
+        isExcludedUiElement(el) {
+            if (!el || el.nodeType !== 1) return true;
+            const tag = el.tagName.toUpperCase();
+            if (tag === 'VIDEO' || tag === 'AUDIO') return false;
+            if (['HTML', 'BODY', 'HEAD', 'SCRIPT', 'STYLE', 'NOSCRIPT', 'LINK', 'META', 'BR', 'HR'].includes(tag)) {
+                return true;
+            }
+
+            // Role 기반 제외 (페이지네이션/진행바/상태/툴팁 등)
+            const role = (el.getAttribute('role') || '').toLowerCase();
+            if (['progressbar', 'status', 'tooltip', 'scrollbar', 'tablist', 'tab'].includes(role)) {
+                return true;
+            }
+
+            // 클래스/ID 기반 하위 UI 요소 제외 (pagination bullet, dot, indicator, arrow, progress 등)
+            const classStr = typeof el.className === 'string' ? el.className : (el.getAttribute('class') || '');
+            const idStr = el.id || '';
+            const combined = `${classStr} ${idStr}`.toLowerCase();
+
+            const excludedSubstrings = [
+                'pagination', 'bullet', 'slick-dots', 'owl-dots', 'owl-nav',
+                'carousel-indicators', 'carousel-control', 'swiper-button',
+                'swiper-scrollbar', 'slick-arrow', 'slick-prev', 'slick-next',
+                'flicking-arrow', 'splide__arrow', 'glide__bullets', 'glide__arrows',
+                'bx-pager', 'bx-controls', 'progressbar', 'progress-bar',
+                'spinner', 'skeleton', 'shimmer', 'ripple', 'tooltip'
+            ];
+            if (excludedSubstrings.some(k => combined.includes(k))) {
+                return true;
+            }
+
+            const excludedTokenRegex = /(^|[\s_-])(dot|dots|indicator|indicators|pager|page-?num|slide-?num|fraction|counter|scrollbar|progress|loading|loader|caret|cursor|badge|toast|arrow|prev|next)([\s_-]|$)/i;
+            if (excludedTokenRegex.test(combined)) {
+                return true;
+            }
+
+            // 페이지네이션/컨트롤 래퍼 내부에 속한 하위 요소 제외
+            try {
+                if (el.closest(
+                    '[class*="pagination"], [class*="indicator"], [class*="slick-dots"], ' +
+                    '[class*="owl-dots"], [class*="owl-nav"], [class*="carousel-indicators"], ' +
+                    '[class*="carousel-control"], [class*="bx-pager"], [class*="bx-controls"], ' +
+                    '[class*="glide__bullets"], [class*="splide__pagination"], ' +
+                    '[role="tablist"], [role="progressbar"]'
+                )) {
+                    return true;
+                }
+            } catch (e) {}
+
+            // 크기 필터링: 아주 작은 UI 요소(점, 아이콘, 얇은 진행바 등) 제외
+            const rect = el.getBoundingClientRect();
+            const text = (el.innerText || '').trim();
+            const isTextTicker = text.length >= 10 && rect.width >= 100 && rect.height >= 14;
+            if (!isTextTicker) {
+                if (rect.width < 30 || rect.height < 16) return true;
+                if (rect.width < 50 && rect.height < 50) return true;
+            }
+
+            // 단독 컨트롤/아이콘 태그 제외
+            if (['BUTTON', 'INPUT', 'SELECT', 'LABEL', 'SVG', 'PATH', 'CIRCLE', 'RECT', 'I'].includes(tag)) {
+                return true;
+            }
+
+            // 의미 있는 시각/텍스트 콘텐츠가 없는 빈 요소나 숫자 인덱스(예: "1", "1/5") 제외
+            if (!this.hasMeaningfulContent(el, text)) {
+                return true;
+            }
+
+            return false;
+        }
+
+        hasMeaningfulContent(el, cachedText) {
+            const tag = el.tagName.toUpperCase();
+            if (['VIDEO', 'AUDIO', 'IMG', 'CANVAS', 'IFRAME'].includes(tag)) return true;
+            if (el.querySelector('img, video, audio, canvas, iframe')) return true;
+
+            const text = cachedText !== undefined ? cachedText : (el.innerText || '').trim();
+            const isOnlySlideIndex = /^\d+(\s*[\/\-·•]\s*\d+)?$/.test(text);
+            if (text.length >= 2 && !isOnlySlideIndex) {
+                return true;
+            }
+
+            try {
+                const bg = window.getComputedStyle(el).backgroundImage;
+                if (bg && bg !== 'none' && bg.includes('url(')) {
+                    return true;
+                }
+                const children = el.querySelectorAll('*');
+                const limit = Math.min(children.length, 25);
+                for (let i = 0; i < limit; i++) {
+                    const cBg = window.getComputedStyle(children[i]).backgroundImage;
+                    if (cBg && cBg !== 'none' && cBg.includes('url(')) {
+                        return true;
+                    }
+                }
+            } catch (e) {}
+
+            return false;
+        }
+
+        resolveContentContainer(el) {
+            if (!el || el.nodeType !== 1) return el;
+            const tag = el.tagName.toUpperCase();
+            if (tag === 'VIDEO' || tag === 'AUDIO') return el;
+
+            const classStr = (typeof el.className === 'string' ? el.className : (el.getAttribute('class') || '')).toLowerCase();
+
+            const containerSelectors = [
+                { match: ['flicking-camera', 'flicking-viewport', 'flicking-panel'], selector: '.flicking-wrapper, .flicking-viewport' },
+                { match: ['slick-track', 'slick-list', 'slick-slide'], selector: '.slick-slider' },
+                { match: ['swiper-wrapper', 'swiper-slide'], selector: '.swiper, .swiper-container' },
+                { match: ['owl-stage', 'owl-stage-outer', 'owl-item'], selector: '.owl-carousel' },
+                { match: ['splide__list', 'splide__track', 'splide__slide'], selector: '.splide' },
+                { match: ['carousel-inner', 'carousel-item'], selector: '.carousel' },
+                { match: ['glide__slides', 'glide__track', 'glide__slide'], selector: '.glide' },
+                { match: ['bx-viewport'], selector: '.bx-wrapper' }
+            ];
+
+            for (const rule of containerSelectors) {
+                if (rule.match.some(cls => classStr.includes(cls))) {
+                    const container = el.closest(rule.selector);
+                    if (container && container !== document.body && container !== document.documentElement) {
+                        return container;
+                    }
+                    if (el.parentElement && el.parentElement !== document.body && el.parentElement !== document.documentElement) {
+                        return el.parentElement;
+                    }
+                }
+            }
+
+            return el;
         }
 
         getMovingElements() {
@@ -105,27 +239,32 @@ async (durationSeconds) => {
                 if (!document.body || !document.body.contains(el)) return;
                 if (this.isStrictlyHidden(el)) return;
 
-                if (el.classList && (el.classList.contains('slick-track') || el.classList.contains('slick-list'))) {
-                    if (el.parentElement) candidates.add(el.parentElement);
-                    return;
+                if (data.count >= threshold) {
+                    const target = this.resolveContentContainer(el);
+                    if (target && !this.isStrictlyHidden(target) && !this.isExcludedUiElement(target)) {
+                        candidates.add(target);
+                    }
                 }
-                if (data.count >= threshold) candidates.add(el);
             });
 
             // 2. CSS Animation 기반
             const allNodes = document.querySelectorAll('*');
             allNodes.forEach(el => {
+                if (this.isStrictlyHidden(el)) return;
                 const style = window.getComputedStyle(el);
-                if (style.animationName && style.animationName !== 'none' && style.animationPlayState === 'running') {
-                    candidates.add(el);
-                }
-                if (this.cssAnimatedElements.has(el)) {
-                    candidates.add(el);
+                const isAnimated = (style.animationName && style.animationName !== 'none' && style.animationPlayState === 'running')
+                    || this.cssAnimatedElements.has(el);
+                if (isAnimated) {
+                    const target = this.resolveContentContainer(el);
+                    if (target && !this.isStrictlyHidden(target) && !this.isExcludedUiElement(target)) {
+                        candidates.add(target);
+                    }
                 }
             });
 
             // 3. Video/Audio 확인
             document.querySelectorAll('video, audio').forEach(media => {
+                if (this.isStrictlyHidden(media)) return;
                 const hasAutoplayAttr = media.hasAttribute('autoplay');
                 const isPlaying = !media.paused && !media.ended;
                 const hasProgress = media.currentTime > 0 && !media.ended;
@@ -135,7 +274,7 @@ async (durationSeconds) => {
                 }
             });
 
-            // 4. 중복 정리
+            // 4. 중복 정리 (상위 컨테이너가 이미 있으면 하위 요소 제거)
             const moving = Array.from(candidates);
             return moving.filter(el => {
                 if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') return true;
@@ -143,8 +282,8 @@ async (durationSeconds) => {
             });
         }
 
-        async testElement(element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        async testElement(element, index) {
+            element.scrollIntoView({ behavior: 'instant', block: 'center' });
             element.classList.add('aca-highlight-testing');
 
             const candidateInfo = this.findBestControl(element);
@@ -184,7 +323,12 @@ async (durationSeconds) => {
             }
 
             element.classList.remove('aca-highlight-testing');
-            element.classList.add(resultStatus === 'PASS' ? 'aca-highlight-pass' : 'aca-highlight-fail');
+            const cleanOuterHtml = element.outerHTML.substring(0, 300);
+
+            const captureId = `aca-pause-${index}`;
+            try {
+                element.setAttribute('data-aca-pause-id', captureId);
+            } catch (e) {}
 
             let captureUrl = null;
             try {
@@ -210,8 +354,9 @@ async (durationSeconds) => {
                 tag: this.getTagInfo(element),
                 status: resultStatus,
                 btn: btnName,
-                outerHTML: element.outerHTML.substring(0, 300),
-                captureUrl: captureUrl
+                outerHTML: cleanOuterHtml,
+                captureUrl: captureUrl,
+                captureId: captureId
             });
         }
 
@@ -277,6 +422,7 @@ async (durationSeconds) => {
                 html: item.outerHTML,
                 tag: item.tag,
                 debug_btn: item.btn,
+                capture_id: item.captureId,
                 capture_url: item.captureUrl,
                 screenshot_url: item.captureUrl
             })),
